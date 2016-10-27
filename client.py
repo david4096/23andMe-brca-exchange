@@ -21,7 +21,7 @@ PAGE_HEADER = "23andMe + GA4GH"
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = '1'
 
 # Pass in more scopes through the command line, or change these.
-DEFAULT_SNPS = ['rs12913832', 'rs3088053', 'rs1000068']
+DEFAULT_SNPS = ['rs12913832', 'rs3088053', 'rs1000068', 'rs206118', 'rs206115']
 DEFAULT_SCOPES = ['names', 'basic'] + DEFAULT_SNPS
 
 # The program will ask for a client_secret if you choose to not hardcode one
@@ -77,6 +77,27 @@ if not client_secret:
 
 app = flask.Flask(__name__)
 
+@app.route('/variants/search')
+def search_variants():
+    # flaskrequest # search variants request
+    # use variant_set_id=brca-hg37 because .data is in that
+    # pass all the arguments to the ga4gh client
+    # send to brca exchange server
+
+    # response from brca exchange
+    # each variant will have variant.start, variant.end, variant.reference_name
+    # look up the variants by position and chromosome in the snp.data file
+
+    # construct a 23andme request using the rs identifier found in the data file
+    # add the 23andme metadata into the variant.info
+
+    # reassemble response, change variants in place?
+    # return ga4gh response, "hydrated" brca response
+
+    # Enter login credentials
+    # Load empty table
+    # Request first range
+    # Add to table... iteratively
 
 @app.route('/')
 def index():
@@ -126,8 +147,11 @@ def _23andMe_queries(client_id, client_secret, redirect_uri):
     access_token = token_dict['access_token']
 
     headers = {'Authorization': 'Bearer %s' % access_token}
-
-    genotype_response = requests.get("%s%s" % (BASE_API_URL, "/1/genotype/"),
+    # multiple profiles on demo account, just choose first?
+    # TODO Render multiple profiles
+    # Can select profile with /demo/genotypes/PROFILE_ID
+    # FIXME remove /demo
+    genotype_response = requests.get("%s%s" % (BASE_API_URL, "/1/demo/genotypes/"),
                                     params={'locations': ' '.join(DEFAULT_SNPS)},
                                     headers=headers,
                                     verify=False)
@@ -143,6 +167,8 @@ def _23andMe_queries(client_id, client_secret, redirect_uri):
     #    names_response.raise_for_status()
     return genotype_response, basic_response
 
+
+
 def _ga4gh_queries():
     """Performs queries against the GA4GH server."""
     if DEBUG:
@@ -150,14 +176,19 @@ def _ga4gh_queries():
     else:
         httpClient = g4client.HttpClient(API_SERVER_GA4GH)
     datasets = list(httpClient.search_datasets())
+    # this file is mapped to hg37
+    # https://api.23andme.com/res/txt/snps.b4e00fe1db50.data
+    # means use the brca-hg37 reference set
     variant_sets = list(httpClient.search_variant_sets(dataset_id=datasets[0].id))
-    iterator = httpClient.search_variants(variant_set_id=variant_sets[0].id,
-        reference_name="1", start=45000, end=50000)
-    results = set()
+    iterator = httpClient.search_variants(variant_set_id='brca-hg38',
+        reference_name="13", start=32315650, end=32315660)
+    results = list()
     for variant in iterator:
         r = (variant.reference_name, variant.start, variant.end,\
             variant.reference_bases, variant.alternate_bases)
-        results.add(r)
+        print(r)
+        results.append(r)
+    # Going to need to get variants on 17 as well
     return results
 
 @app.route('/app/')
